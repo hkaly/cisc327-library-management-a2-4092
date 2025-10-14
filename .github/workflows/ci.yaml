@@ -25,5 +25,9 @@ jobs:
       
       - name: Run tests
         run: |
-            export PYTHONPATH=.
-            pytest --cov=library_service --cov-report=xml tests/
+          pytest -v \
+            --cov=library_service \
+            --cov=database \
+            --cov=routes \
+            --cov-report=xml \
+            tests/
