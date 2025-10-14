@@ -113,8 +113,11 @@ def return_book_by_patron(patron_id: str, book_id: int) -> Tuple[bool, str]:
     Returns:
         tuple: (success: bool, message: str)
     """ 
-    if not patron_id or not patron_id.isdigit() or len(patron_id) != 6:
-        return False
+    if not book_id:
+        return False, "Book ID required."
+    
+    if not patron_id.isdigit() or len(patron_id) != 6:
+        return False, "Invalid patron ID. Must be exactly 6-digit."
 
     # Check if book was borrowed by the patron
     borrowed_books = get_patron_borrowed_books(patron_id)
