@@ -23,6 +23,12 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-cov
       
+      - name: Reset database
+        run: rm -f library.db
+
+      - name: Initialize database
+        run: python -c "import database; database.init_database()"
+
       - name: Run tests
         env:
           PYTHONPATH: .
