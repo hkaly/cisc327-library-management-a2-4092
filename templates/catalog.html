@@ -24,7 +24,7 @@
             <td>{{ book.author }}</td>
             <td>{{ book.isbn }}</td>
             <td>
-                {% if book.available_copies > 0 %}
+                {% if book.available_copies >= 0 %}
                     <span class="status-available">{{ book.available_copies }}/{{ book.total_copies }} Available</span>
                 {% else %}
                     <span class="status-unavailable">Not Available</span>

@@ -1,80 +1,162 @@
-import pytest, json, database
-from datetime import datetime, timedelta
-from library_service import (
-    add_book_to_catalog,
-    borrow_book_by_patron,
-    return_book_by_patron,
-    calculate_late_fee_for_book,
-    search_books_in_catalog,
+import pytest, database
+from services.library_service import (
     get_patron_status_report
 )
+from datetime import datetime, timedelta
 
-def test_get_patron_status_valid_input():
-    """Test getting patron status with valid patron ID."""
-    # Add books and create borrowing scenario
-    add_book_to_catalog("Python Programming", "John Smith", "1234567890700", 3)
-    add_book_to_catalog("Java Basics", "Jane Doe", "1234567890701", 2)
-    book1 = database.get_book_by_isbn("1234567890700")
-    book2 = database.get_book_by_isbn("1234567890701")
-    
-    # Borrow books
-    borrow_book_by_patron("123456", str(book1['id']))
-    borrow_book_by_patron("123456", str(book2['id']))
-    
-    success, report = get_patron_status_report("123456")
-    assert success == True
-    assert isinstance(report, dict)
+#---------------------------------------------------------------------------------------------------------
+# New examples - should FAIL pytest because function is not implemented/ missing from library_service.py
+#---------------------------------------------------------------------------------------------------------
 
-def test_get_patron_status_patron_id_too_short():
-    """Test patron status with patron ID too short."""
-    success, report = get_patron_status_report("12345")
-    assert success == False
-    assert "6-digit" in report
+# assuming return dictionary format is    key: patron ID 
+# 
+# return { 
+#       'currently_borrowed': [{'title': "book 1", 'author': "Steve", 'due_date': "2025/09/18"}, {'title': "book 2", ..., ..., ...}],
+#       'total_late_fees': 0,
+#       'num_borrowed_books': 2,
+#       'borrowing_history': {book 1, book 2}
+#       }
+from database import init_database
 
-def test_get_patron_status_patron_id_too_long():
-    """Test patron status with patron ID too long."""
-    success, report = get_patron_status_report("1234567")
-    assert success == False
-    assert "6-digit" in report
+# Initialize database once before all tests
+init_database()
+def test_patron_status_valid_id_no_late():
 
-def test_get_patron_status_patron_id_non_digits():
-    """Test patron status with patron ID containing non-digits."""
-    success, report = get_patron_status_report("12345a")
-    assert success == False
-    assert "6-digit" in report
+    # vars
+    isbn = "4000000000000"
+    total_copies = 1
+    avail_copies = 1
+    patron_id = "400000"
+    borrow_date = datetime.now()
+    due_date = (datetime.now() + timedelta(days=14))
 
-def test_get_patron_status_no_borrowed_books():
-    """Test patron status for patron with no currently borrowed books."""
-    # Add a book but don't borrow it
-    add_book_to_catalog("Network Security", "Sarah Thompson", "1234567890708", 5)
-    
-    success, report = get_patron_status_report("111111")
-    assert success == True
-    assert "currently_borrowed" in report
-    assert len(report["currently_borrowed"]) == 0
-    assert "books_borrowed_count" in report
-    assert report["books_borrowed_count"] == 0
+    # add book to database
+    assert database.insert_book("Test Book R7", "Test Author", isbn, total_copies, avail_copies)
 
-def test_get_patron_status_multiple_overdue_books():
-    """Test patron status with multiple overdue books calculates total fees."""
-    # Add multiple books and simulate overdue scenarios
-    add_book_to_catalog("Mobile Development", "Helen Rodriguez", "1234567890712", 3)
-    add_book_to_catalog("Cloud Computing", "James Taylor", "1234567890713", 2)
-    book1 = database.get_book_by_isbn("1234567890712")
-    book2 = database.get_book_by_isbn("1234567890713")
-    
-    # Simulate overdue borrowings
-    borrow_date1 = datetime.now() - timedelta(days=16)  # 2 days overdue
-    due_date1 = borrow_date1 + timedelta(days=14)
-    database.update_book_availability(book1['id'], -1)
-    database.insert_borrow_record("123456", book1['id'], borrow_date1, due_date1)
-    
-    borrow_date2 = datetime.now() - timedelta(days=18)  # 4 days overdue
-    due_date2 = borrow_date2 + timedelta(days=14)
-    database.update_book_availability(book2['id'], -1)
-    database.insert_borrow_record("123456", book2['id'], borrow_date2, due_date2)
-    
-    success, report = get_patron_status_report("123456")
-    assert success == True
-    assert "total_late_fees" in report
-    assert report["total_late_fees"] > 0
+    # get book id
+    book = database.get_book_by_isbn(isbn)
+    assert book is not None
+    assert "id" in book
+
+    # borrow book
+    assert database.insert_borrow_record(patron_id, book["id"], borrow_date, due_date)
+
+    # update book availability
+    assert database.update_book_availability(book["id"], -1)
+
+    # get patron status
+    status = get_patron_status_report(patron_id)
+
+    # check status
+    book_one = status["currently_borrowed"][0]
+    assert book_one["title"] == "Test Book R7"
+    assert book_one["author"] == "Test Author"
+    assert book_one["due_date"] == due_date
+
+    assert status["total_late_fees"] == 0
+    assert status["num_borrowed_books"] == 1
+    assert status["borrowing_history"] == {"Test Book R7"}
+
+
+def test_patron_status_invalid_non_exisitent_id():
+    # vars
+    isbn = "0400000000000"
+    total_copies = 1
+    avail_copies = 1
+    patron_id_one = "040000"
+    patron_id_two = "004000"
+    borrow_date = datetime.now()
+    due_date = (datetime.now() + timedelta(days=14))
+
+    # add book to database
+    assert database.insert_book("Test Book R7", "Test Author", isbn, total_copies, avail_copies)
+
+    # get book id
+    book = database.get_book_by_isbn(isbn)
+    assert book is not None
+    assert "id" in book
+
+    # borrow book
+    assert database.insert_borrow_record(patron_id_one, book["id"], borrow_date, due_date)
+
+    # update book availability
+    assert database.update_book_availability(book["id"], -1)
+
+    # get patron status
+    status = get_patron_status_report(patron_id_two)
+
+    # check status
+    assert status is None
+
+def test_patron_status_valid_invalid_with_letters_id():
+    # vars
+    isbn = "0040000000000"
+    total_copies = 1
+    avail_copies = 1
+    patron_id_one = "004000"
+    patron_id_two = "ABC000"
+    borrow_date = datetime.now()
+    due_date = (datetime.now() + timedelta(days=14))
+
+    # add book to database
+    assert database.insert_book("Test Book R7", "Test Author", isbn, total_copies, avail_copies)
+
+    # get book id
+    book = database.get_book_by_isbn(isbn)
+    assert book is not None
+    assert "id" in book
+
+    # borrow book
+    assert database.insert_borrow_record(patron_id_one, book["id"], borrow_date, due_date)
+
+    # update book availability
+    assert database.update_book_availability(book["id"], -1)
+
+    # get patron status
+    status = get_patron_status_report(patron_id_two)
+
+    # check status
+    assert status is None
+
+def test_patron_status_valid_id_with_late_5_days():
+
+    # vars
+    isbn = "0004000000000"
+    total_copies = 1
+    avail_copies = 1
+    patron_id = "000400"
+    borrow_date = (datetime.now() - timedelta(days=5 + 14))
+    due_date = (datetime.now() - timedelta(days=5))
+
+    # add book to database
+    assert database.insert_book("Test Book R7", "Test Author", isbn, total_copies, avail_copies)
+
+    # get book id
+    book = database.get_book_by_isbn(isbn)
+    assert book is not None
+    assert "id" in book
+
+    # borrow book
+    assert database.insert_borrow_record(patron_id, book["id"], borrow_date, due_date)
+
+    # update book availability
+    assert database.update_book_availability(book["id"], -1)
+
+    # get patron status
+    status = get_patron_status_report(patron_id)
+
+    # check status
+    book_one = status["currently_borrowed"][0]
+    assert book_one["title"] == "Test Book R7"
+    assert book_one["author"] == "Test Author"
+    assert book_one["due_date"] == due_date
+
+    assert status["total_late_fees"] == 5*0.50
+    assert status["num_borrowed_books"] == 1
+    assert status["borrowing_history"] == {"Test Book R7"}
+
+
+#non existent ID -> pass (DONE)
+#Valid patron ID w/ late books 5 days-> pass
+#Invalid patron ID -> pass (DONE)
+#Valid patron ID w/ no late books (DONE)

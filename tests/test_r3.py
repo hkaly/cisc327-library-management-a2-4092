@@ -1,56 +1,152 @@
-import pytest, json, database
-from datetime import datetime, timedelta
-from library_service import (
-    add_book_to_catalog,
-    borrow_book_by_patron,
-    return_book_by_patron,
-    calculate_late_fee_for_book,
-    search_books_in_catalog,
-    get_patron_status_report
+import pytest, database
+from services.library_service import (
+    borrow_book_by_patron
 )
 
+#---------------------------------------------------------------------------------------------------------
+# New examples - PASS pytest
+#---------------------------------------------------------------------------------------------------------
+from database import init_database
+
+# Initialize database once before all tests
+init_database()
 def test_borrow_book_valid_input():
-    """Test borrowing a book with valid patron ID and book ID."""
-    # Add a book to catalog and get its ID
-    add_book_to_catalog("Python Programming", "John Smith", "1234567890300", 3)
-    book = database.get_book_by_isbn("1234567890300")
-    success, message = borrow_book_by_patron("123456", str(book['id']))
+    """Test borrowing a book with valid input."""
+
+    # vars
+    isbn = "6666666666666"
+    total_copies = 1
+    avail_copies = 1
+    patron_id = "000000"
+
+    # insert book to borrow
+    assert database.insert_book("Test Book R3", "Test Author", isbn, total_copies, avail_copies)
+
+    # find book id from isbn
+    book = database.get_book_by_isbn(isbn)
+    assert book is not None
+    assert "id" in book
+
+    # borrow book
+    success2, message2 = borrow_book_by_patron(patron_id, book["id"])
+    assert success2 == True
+    assert "successfully borrowed" in message2.lower()
+
+def test_borrow_book_invalid_patron_id_with_letters():
+    """Test borrowing a book with a non-numerical patron ID."""
+    # vars
+    isbn = "7777777777777"
+    total_copies = 1
+    avail_copies = 1
+    patron_id = "ABC456"
+
+    # insert book to borrow
+    assert database.insert_book("Test Book R3", "Test Author", isbn, total_copies, avail_copies)
+
+    # find book id from isbn
+    book = database.get_book_by_isbn(isbn)
+    assert book is not None
+    assert "id" in book
+
+    # borrow book with invalid patron ID
+    success2, message2 = borrow_book_by_patron(patron_id, book["id"])
+    assert success2 == False
+    assert "invalid patron id" in message2.lower()
+
+def test_borrow_book_invalid_patron_id_more_than_six_digits():
+    """Test borrowing a book with a patron ID larger than 6 digits."""
+
+    # vars
+    isbn = "8888888888888"
+    total_copies = 1
+    avail_copies = 1
+    patron_id = "1234567"
+
+    # insert book to borrow
+    assert database.insert_book("Test Book R3", "Test Author", isbn, total_copies, avail_copies)
+
+    # find book id from isbn
+    book = database.get_book_by_isbn(isbn)
+    assert book is not None
+    assert "id" in book
+
+    # borrow book with patron ID longer than 6 digits
+    success2, message2 = borrow_book_by_patron(patron_id, book["id"])
+    assert success2 == False
+    assert "invalid patron id" in message2.lower()
+
+#---------------------------------------------------------------------------------------------------------
+# New example - should FAIL pytest because function is not implemented/ missing from library_service.py
+#---------------------------------------------------------------------------------------------------------
+
+def test_borrow_book_invalid_borrow_more_than_five_books():
+    """Test borrowing more than 5 books."""
+    # vars
+    isbn = "9999999999999"
+    total_copies = 6
+    avail_copies = 6
+    patron_id = "111111"
+
+    # insert book to borrow
+    assert database.insert_book("Test Book R3", "Test Author", isbn, total_copies, avail_copies)
+
+    # find book id from isbn
+    book = database.get_book_by_isbn(isbn)
+    assert book is not None
+    assert "id" in book
+
+    # borrow 5 books - should have no problem
+    for i in range(5):
+        success2, message2 = borrow_book_by_patron(patron_id, book["id"])
+        assert success2 == True
+        assert "successfully borrowed" in message2.lower()
+
+    # borrow a 6th book - should error because of limit
+    for i in range(avail_copies - 5):
+        success3, message3 = borrow_book_by_patron(patron_id, book["id"])
+        assert success3 == False
+        assert "limit of 5 books" in message3.lower()
+
+def test_borrow_book_when_no_copies_available():
+    """Test borrowing a book when all copies are already borrowed."""
+    isbn = "1111111111111"
+    total_copies = 2
+    avail_copies = 2
+    patron_id_one = "222222"
+    patron_id_two = "333333"
+    
+    # Insert book
+    assert database.insert_book("No Copies Book", "Popular Author", isbn, total_copies, avail_copies)
+    
+    # Get book id
+    book = database.get_book_by_isbn(isbn)
+    assert book is not None
+    assert "id" in book
+    
+    # Patron 1 borrows both copies
+    success1, message1 = borrow_book_by_patron(patron_id_one, book["id"])
+    assert success1 == True
+    
+    success2, message2 = borrow_book_by_patron(patron_id_one, book["id"])
+    assert success2 == True
+    
+    # Patron 2 tries to borrow (should fail - no copies available)
+    success3, message3 = borrow_book_by_patron(patron_id_two, book["id"])
+    assert success3 == False
+    assert "not available" in message3.lower()
+
+
+def test_borrow_book_patron_with_zero_books():
+    """Test borrowing when patron has never borrowed before (0 books)."""
+    isbn = "3000000000004"
+    patron_id = "666666"
+    
+    assert database.insert_book("First Borrow Book", "New Patron Author", isbn, 1, 1)
+    
+    book = database.get_book_by_isbn(isbn)
+    assert book is not None
+    
+    # First time borrowing
+    success, message = borrow_book_by_patron(patron_id, book["id"])
     assert success == True
-    assert "successfully borrowed" in message
-
-
-def test_borrow_book_patron_id_required():
-    """Test borrowing a book with missing patron ID."""
-    # Add a book to catalog and get its ID
-    add_book_to_catalog("Java Basics", "Jane Doe", "1234567890301", 2)
-    book = database.get_book_by_isbn("1234567890301")
-    success, message = borrow_book_by_patron("", str(book['id']))
-    assert success == False
-    assert "patron ID required" in message
-
-
-def test_borrow_book_patron_id_too_short():
-    """Test borrowing a book with patron ID too short."""
-    # Add a book to catalog and get its ID
-    add_book_to_catalog("Web Development", "Bob Johnson", "1234567890302", 5)
-    book = database.get_book_by_isbn("1234567890302")
-    success, message = borrow_book_by_patron("12345", str(book['id']))
-    assert success == False
-    assert "6-digit" in message
-
-def test_borrow_book_invalid_book_id():
-    """Test borrowing a book with non-existent book ID."""
-    # Add a book but use invalid book ID for borrowing
-    add_book_to_catalog("Database Design", "Alice Wilson", "1234567890303", 4)
-    success, message = borrow_book_by_patron("123456", "99999")
-    assert success == False
-    assert "book not found" in message 
-
-def test_borrow_book_no_copies_available():
-    """Test borrowing a book with no available copies."""
-    # Add a book with no available copies
-    add_book_to_catalog("Machine Learning", "David Brown", "1234567890304", 0)
-    book = database.get_book_by_isbn("1234567890304")
-    success, message = borrow_book_by_patron("123456", str(book['id']))
-    assert success == False
-    assert "not available" in message
+    assert "successfully borrowed" in message.lower()

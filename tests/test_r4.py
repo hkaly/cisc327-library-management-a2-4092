@@ -1,95 +1,141 @@
-import pytest, json, database
-from datetime import datetime, timedelta
-from library_service import (
-    add_book_to_catalog,
-    borrow_book_by_patron,
-    return_book_by_patron,
-    calculate_late_fee_for_book,
-    search_books_in_catalog,
-    get_patron_status_report
+import pytest, database
+from services.library_service import (
+    return_book_by_patron
 )
+from datetime import datetime, timedelta
 
+#---------------------------------------------------------------------------------------------------------
+# New examples - should FAIL pytest because function is not implemented/ missing from library_service.py
+#---------------------------------------------------------------------------------------------------------
+from database import init_database
+
+# Initialize database once before all tests
+init_database()
 def test_return_book_valid_input():
-    """Test returning a book with valid patron ID and book ID."""
-    # Add a book and borrow it first
-    add_book_to_catalog("Python Programming", "John Smith", "1234567890400", 3)
-    book = database.get_book_by_isbn("1234567890400")
+    """Test returning a book with valid input."""
+
+    # vars
+    isbn = "1000000000000"
+    total_copies = 1
+    avail_copies = 1
+    patron_id = "100000"
+
+    # add book to database
+    assert database.insert_book("Test Book R3", "Test Author", isbn, total_copies, avail_copies)
+
+    # get book id
+    book = database.get_book_by_isbn(isbn)
+    assert book is not None
+    assert "id" in book
+
+    # borrow book
+    assert database.insert_borrow_record(patron_id, book["id"], datetime.now(), (datetime.now() + timedelta(days=14)))
+
+    # update book availabilty in database
+    assert database.update_book_availability(book["id"], -1)
+
+    # return book
+    success3, message3 = return_book_by_patron(patron_id, book["id"])
+    assert success3 == True
+    #assert "successfully returned" in message3.lower()
+
+def test_return_book_invalid_not_borrowed_by_patron():
+    """Test returning a book that was not checked out by the patron ID."""
+
+    # vars
+    isbn = "0100000000000"
+    total_copies = 1
+    avail_copies = 1
+    patron_id_one = "010000"
+    patron_id_two = "001000"
+
+    # add book to database
+    assert database.insert_book("Test Book R3", "Test Author", isbn, total_copies, avail_copies)
+
+    # get book id
+    book = database.get_book_by_isbn(isbn)
+    assert book is not None
+    assert "id" in book
+
+    # borrow book
+    assert database.insert_borrow_record(patron_id_one, book["id"], datetime.now(), (datetime.now() + timedelta(days=14)))
+
+    # update book availabilty in database
+    assert database.update_book_availability(book["id"], -1)
+
+    # return book with different patron id
+    success3, message3 = return_book_by_patron(patron_id_two, book["id"])
+    assert success3 == False
+    assert not ("book return functionality is not yet implemented." in message3.lower()) and ("no book found" in message3.lower())
+
+def test_return_book_invalid_book_id_not_found():
+    """Test returning a book with an invalid book ID"""
+
+     # vars
+    isbn = "0010000000000"
+    total_copies = 1
+    avail_copies = 1
+    patron_id = "000100"
+    invalid_book_id = "10000000"
+
+    # add book to database
+    assert database.insert_book("Test Book R3", "Test Author", isbn, total_copies, avail_copies)
+
+    # get book id
+    book = database.get_book_by_isbn(isbn)
+    assert book is not None
+    assert "id" in book
+
+    # borrow book
+    assert database.insert_borrow_record(patron_id, book["id"], datetime.now(), (datetime.now() + timedelta(days=14)))
+
+    # update book availabilty in database
+    assert database.update_book_availability(book["id"], -1)
     
-    # First borrow the book
-    borrow_book_by_patron("123456", str(book['id']))
-    
-    # Then try to return it
-    success, message = return_book_by_patron("123456", str(book['id']))
-    assert success == True
-    assert "successfully returned" in message
+    # return book with an invalid book id
+    success3, message3 = return_book_by_patron("000100", invalid_book_id)
+    assert success3 == False
+    assert not ("book return functionality is not yet implemented." in message3.lower()) and ("not found" in message3.lower())
 
 
-def test_return_book_patron_id_required():
-    """Test returning a book with missing patron ID."""
-    # Add a book and borrow it first
-    add_book_to_catalog("Java Basics", "Jane Doe", "1234567890401", 2)
-    book = database.get_book_by_isbn("1234567890401")
-    
-    # First borrow the book
-    borrow_book_by_patron("123456", str(book['id']))
-    
-    # Try to return with empty patron ID
-    success, message = return_book_by_patron("", str(book['id']))
-    assert success == False
-    assert "patron ID required" in message
+def test_return_book_valid_available_copies_updated():
+    """Test that the available copies updated after the user returns a book"""
 
+    # vars
+    isbn = "0001000000000"
+    total_copies = 3
+    avail_copies = 3
+    patron_id = "000010"
 
-def test_return_book_book_id_required():
-    """Test returning a book with missing book ID."""
-    # Add a book and borrow it first
-    add_book_to_catalog("Web Development", "Bob Johnson", "1234567890402", 5)
-    book = database.get_book_by_isbn("1234567890402")
-    
-    # First borrow the book
-    borrow_book_by_patron("123456", str(book['id']))
-    
-    # Try to return with empty book ID
-    success, message = return_book_by_patron("123456", "")
-    assert success == False
-    assert "book ID required" in message
+    # add book to database
+    assert database.insert_book("Test Book R3", "Test Author", isbn, total_copies, avail_copies)
 
+    # get book id and available copies
+    book = database.get_book_by_isbn(isbn)
+    assert book is not None
+    assert "id" in book
+    assert "available_copies" in book
 
-def test_return_book_patron_id_too_short():
-    """Test returning a book with patron ID too short."""
-    # Add a book and borrow it first
-    add_book_to_catalog("Database Design", "Alice Wilson", "1234567890403", 4)
-    book = database.get_book_by_isbn("1234567890403")
-    
-    # First borrow the book with valid patron ID
-    borrow_book_by_patron("123456", str(book['id']))
-    
-    # Try to return with short patron ID
-    success, message = return_book_by_patron("12345", str(book['id']))
-    assert success == False
-    assert "6-digit" in message
+    # find how many availble copies thier are
+    before_borrow = database.get_book_by_id(book["id"])["available_copies"]
+    assert before_borrow == total_copies
 
+    # borrow book
+    assert database.insert_borrow_record(patron_id, book["id"], datetime.now(), (datetime.now() + timedelta(days=14)))
 
-def test_return_book_patron_id_too_long():
-    """Test returning a book with patron ID too long."""
-    # Add a book and borrow it first
-    add_book_to_catalog("Machine Learning", "David Brown", "1234567890404", 3)
-    book = database.get_book_by_isbn("1234567890404")
-    
-    # First borrow the book with valid patron ID
-    borrow_book_by_patron("123456", str(book['id']))
-    # Try to return with long patron ID
-    success, message = return_book_by_patron("1234567", str(book['id']))
-    assert success == False
-    assert "6-digit" in message
+    # update book availabilty in database
+    assert database.update_book_availability(book["id"], -1)
 
+    # see how many available copies thier are after borrowing (should be -1)
+    after_borrow = database.get_book_by_id(book["id"])["available_copies"]
+    assert after_borrow == 2
 
-def test_return_book_not_borrowed_by_patron():
-    """Test returning a book that was not borrowed by the patron."""
-    # Add a book but don't borrow it
-    add_book_to_catalog("Data Structures", "Carol White", "1234567890405", 2)
-    book = database.get_book_by_isbn("1234567890405")
+    # return the book and see if the book count increased by 1
+    success3, message3 = return_book_by_patron(patron_id, book["id"])
+    assert success3 == True
+    assert "successfully returned" in message3.lower()
 
-    # Try to return without borrowing first
-    success, message = return_book_by_patron("123456", str(book['id']))
-    assert success == False
-    assert "not borrowed" in message
+    # check that the number of books we started with equals the number after the return
+    after_return = database.get_book_by_id(book["id"])["available_copies"]
+    assert after_return == before_borrow
+

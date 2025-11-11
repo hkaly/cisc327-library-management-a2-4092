@@ -1,52 +1,91 @@
-import pytest, json, database
-from datetime import datetime, timedelta
-from library_service import (
-    add_book_to_catalog,
-    borrow_book_by_patron,
-    return_book_by_patron,
-    calculate_late_fee_for_book,
-    search_books_in_catalog,
-    get_patron_status_report
+import pytest, database
+from services.library_service import (
+    search_books_in_catalog
 )
 
-def test_search_books_valid_title_search():
-    """Test searching books with valid title search term."""
-    # Add books with different titles for searching
-    add_book_to_catalog("Python Programming", "John Smith", "1234567890600", 3)
-    add_book_to_catalog("Java Programming", "Jane Doe", "1234567890601", 2)
-    
-    results = search_books_in_catalog("Python", "title")
-    assert isinstance(results, list)
-    assert len(results) >= 1
+#---------------------------------------------------------------------------------------------------------
+# New examples - should FAIL pytest because function is not implemented/ missing from library_service.py
+#---------------------------------------------------------------------------------------------------------
+from database import init_database
 
-def test_search_books_invalid_isbn_search():
-    """Test searching books with invalid ISBN search term."""
-    # Add a book with specific ISBN for searching
-    add_book_to_catalog("Machine Learning", "David Brown", "1234567890604", 3)
-    
-    results = search_books_in_catalog("0000567890604", "isbn")
-    assert isinstance(results, list)
-    assert len(results) == 0
+# Initialize database once before all tests
+init_database()
+def test_search_books_valid_title():
+    # vars
+    isbn = "3000000000000"
+    total_copies = 1
+    avail_copies = 1
+    search_term = "Test Book R6"
+    search_type = "title"
 
-def test_search_books_title_partial_matching():
-    """Test partial matching for title searches."""
-    # Add books with titles containing "Program"
-    add_book_to_catalog("Advanced Programming", "Carol White", "1234567890605", 2)
-    add_book_to_catalog("Program Design", "Mark Davis", "1234567890606", 3)
-    
-    results = search_books_in_catalog("Program", "title")
-    assert isinstance(results, list)
-    assert len(results) >= 2
+    # add book to database
+    assert database.insert_book("Test Book R6", "Test Author", isbn, total_copies, avail_copies)
 
-def test_search_books_title_case_insensitive():
-    """Test case insensitive search for titles."""
-    # Add a book with specific title
-    add_book_to_catalog("Software Engineering", "Tom Wilson", "1234567890609", 2)
-    
-    results_lower = search_books_in_catalog("software", "title")
-    results_upper = search_books_in_catalog("SOFTWARE", "title")
-    
-    assert isinstance(results_lower, list)
-    assert isinstance(results_upper, list)
-    assert len(results_lower) == len(results_upper)
-    assert len(results_lower) >= 2
+    # search book title
+    book_list = search_books_in_catalog(search_term, search_type)
+    assert book_list is not None
+    assert len(book_list) >= 1
+
+def test_search_books_valid_author():
+    # vars
+    isbn = "0300000000000"
+    total_copies = 1
+    avail_copies = 1
+    search_term = "Test Author"
+    search_type = "author"
+
+    # add book to database
+    assert database.insert_book("Test Book R6", "Test Author", isbn, total_copies, avail_copies)
+
+    # search book title
+    book_list = search_books_in_catalog(search_term, search_type)
+    assert book_list is not None
+    assert len(book_list) >= 1
+
+def test_search_books_valid_isbn():
+    # vars
+    isbn = "0030000000000"
+    total_copies = 1
+    avail_copies = 1
+    search_term = isbn
+    search_type = "isbn"
+
+    # add book to database
+    assert database.insert_book("Test Book R6", "Test Author", isbn, total_copies, avail_copies)
+
+    # search book title
+    book_list = search_books_in_catalog(search_term, search_type)
+    assert book_list is not None
+    assert len(book_list) >= 1
+
+    # look through list of books to see if mathcing isbn is found
+    res = False
+    for book in book_list:
+        if book.get("isbn") == isbn:
+            res = True
+            break
+    assert res == True
+
+def test_search_books_invalid_isbn():
+    # vars
+    isbn = "0003000000000"
+    total_copies = 1
+    avail_copies = 1
+    search_term = "0000300000000"
+    search_type = "isbn"
+
+    # add book to database
+    assert database.insert_book("Test Book R6", "Test Author", isbn, total_copies, avail_copies)
+
+    # search book title
+    book_list = search_books_in_catalog(search_term, search_type)
+    assert book_list == []
+
+    # look through list of books to see if mathcing isbn is found
+    res = False
+    for book in book_list:
+        if book.get("isbn") == isbn:
+            res = True
+            break
+    assert res == False
+
