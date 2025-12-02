@@ -1,9 +1,9 @@
 from playwright.sync_api import Page, expect
-import random, database
+import database, os, pytest
 
 BASE_URL = "http://localhost:5000" #containerized on docker port 5000
 
-def add_book_to_catalog_and_borrow(page: Page):
+def test_add_book_to_catalog_and_borrow(page: Page):
     # ADD BOOK
     # Go to route
     page.goto(BASE_URL +"/add_book")
@@ -11,7 +11,7 @@ def add_book_to_catalog_and_borrow(page: Page):
     # Fill form to add book 
     page.fill("input[name='title']", "PLAYWRIGHT")
     page.fill("input[name='author']", "ME")
-    page.fill("input[name='isbn']", 1312111098765)
+    page.fill("input[name='isbn']", "1312111098765")
     page.fill("input[name='total_copies']", "3")
 
     # Submit form
@@ -21,7 +21,7 @@ def add_book_to_catalog_and_borrow(page: Page):
     page.wait_for_url(BASE_URL + "/catalog")
 
     # Book should appear in catalog table
-    row = page.get_by_role("row").filter(has_text=1312111098765)
+    row = page.get_by_role("row").filter(has_text="1312111098765")
     expect(row).to_be_visible()
     expect(row.get_by_role("cell", name="PLAYWRIGHT")).to_be_visible()
     expect(row.get_by_role("cell", name="ME")).to_be_visible()
