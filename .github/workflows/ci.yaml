@@ -24,7 +24,7 @@ jobs:
       
       - name: Install Playwright browsers
         run: |
-        python -m playwright install --with-deps
+          python -m playwright install --with-deps
       # - name: Reset database
       #   run: rm -f library.db
 
