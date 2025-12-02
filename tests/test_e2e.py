@@ -1,9 +1,8 @@
 from playwright.sync_api import Page, expect
 import database, os, pytest
 
-#skip becasue server not running 
 pytestmark = pytest.mark.skipif(
-    os.getenv("CI") == "true"
+    os.getenv("CI") == "true", reason="skip because server not running "
 )
 
 BASE_URL = "http://localhost:5000" #containerized on docker port 5000
